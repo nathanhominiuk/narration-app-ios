@@ -198,6 +198,8 @@ export class AudioBufferPlayer {
     this._sentenceBuffers = [];  // [{buffer, wordTimings, charOffset}]
     this._currentSentenceIdx = 0;
     this._sentenceStartOffset = 0; // cumulative time offset for current sentence
+    this._waitingForNext = false;  // true when player exhausted queue but more may come
+    this._finalized = false;       // true when no more sentences will be appended
   }
 
   _ensureContext() {
@@ -249,6 +251,8 @@ export class AudioBufferPlayer {
     this._rate = rate;
     this._playing = true;
     this._paused = false;
+    this._waitingForNext = false;
+    this._finalized = false;
 
     // Find which sentence to start from based on word index
     this._currentSentenceIdx = 0;
@@ -269,10 +273,17 @@ export class AudioBufferPlayer {
 
   _playSentenceAtIndex(idx) {
     if (idx >= this._sentenceBuffers.length) {
-      this._playing = false;
-      if (this._onEnd) this._onEnd();
+      if (this._finalized) {
+        this._playing = false;
+        this._waitingForNext = false;
+        if (this._onEnd) this._onEnd();
+      } else {
+        // More sentences may be coming — wait
+        this._waitingForNext = true;
+      }
       return;
     }
+    this._waitingForNext = false;
 
     const sb = this._sentenceBuffers[idx];
     this._buffer = sb.buffer;
@@ -369,6 +380,28 @@ export class AudioBufferPlayer {
     this.stopSource();
     this._sentenceBuffers = [];
     this._startOffset = 0;
+    this._waitingForNext = false;
+    this._finalized = false;
+  }
+
+  // Append a sentence buffer during streaming playback
+  appendSentence(sentenceBuffer) {
+    this._sentenceBuffers.push(sentenceBuffer);
+    if (this._waitingForNext) {
+      this._waitingForNext = false;
+      this._playSentenceAtIndex(this._sentenceBuffers.length - 1);
+    }
+  }
+
+  // Signal that no more sentences will be appended
+  finalize() {
+    this._finalized = true;
+    if (this._waitingForNext) {
+      this._playing = false;
+      this._waitingForNext = false;
+      this._stopWordTracking();
+      if (this._onEnd) this._onEnd();
+    }
   }
 
   setRate(rate) {

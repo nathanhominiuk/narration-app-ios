@@ -92,6 +92,18 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
 /* Engine info note */
 .engine-note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}
 
+/* Player status overlay */
+#player-status{display:none;flex-direction:column;align-items:center;gap:8px;
+  padding:32px 24px;text-align:center}
+#player-status.visible{display:flex}
+#ps-message{font-size:14px;color:var(--paper);font-weight:500}
+#ps-detail{font-size:12px;color:var(--muted)}
+#ps-bar-wrap{width:100%;max-width:280px;display:none}
+#player-status.has-bar #ps-bar-wrap{display:block}
+#ps-spinner{display:none}
+#player-status.has-spinner #ps-spinner{display:block}
+#player-status.error #ps-message{color:#e07070}
+
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid var(--rule)}
 .tab{flex:1;padding:11px 0;font-family:var(--ff-sans);font-size:12px;
@@ -303,6 +315,12 @@ textarea{min-height:130px}
     </button>
     <div id="player-title"></div>
   </div>
+  <div id="player-status">
+    <div id="ps-spinner" class="spinner"></div>
+    <div id="ps-message"></div>
+    <div id="ps-detail"></div>
+    <div id="ps-bar-wrap" class="dl-bar-wrap"><div id="ps-bar" class="dl-bar"></div></div>
+  </div>
   <div id="transcript-scroll">
     <div id="article-source"></div>
     <div id="article-heading"></div>
@@ -384,7 +402,7 @@ async function getEngineModules() {
   return _engineModules;
 }
 
-async function ensureEngine(engineId) {
+async function ensureEngine(engineId, onProgress) {
   const mod = await getEngineModules();
 
   // Lazy-load engine-specific modules
@@ -404,6 +422,7 @@ async function ensureEngine(engineId) {
     try {
       await engine.init((progress) => {
         updateDownloadBar(progress.percent, progress.file);
+        if (onProgress) onProgress(progress);
       });
       updatePillStatus(engineId, 'ready');
     } catch (err) {
@@ -657,16 +676,23 @@ async function beginNarration(article) {
   document.getElementById('player-controls').classList.add('visible');
   document.getElementById('t-dur').textContent = fmt(S.estDuration);
 
-  // Initialize the selected engine
+  // Initialize the selected engine with status overlay on player screen
+  showPlayerStatus('loading', 'Loading voice engine\u2026');
   try {
-    S.engine = await ensureEngine(S.engineId);
+    S.engine = await ensureEngine(S.engineId, (progress) => {
+      showPlayerStatus('progress', 'Downloading model\u2026',
+        (progress.file ? progress.file.split('/').pop() : '') +
+        (progress.percent != null ? ' ' + Math.round(progress.percent) + '%' : ''),
+        progress.percent);
+    });
     if (S.voiceId) S.engine.setVoice(S.voiceId);
   } catch (err) {
-    // Fall back to web-speech if engine fails to load
-    toast('Engine failed, using System voice');
+    showPlayerStatus('error', 'Engine failed to load', 'Falling back to System voice');
+    await new Promise(r => setTimeout(r, 1500));
     S.engineId = 'web-speech';
     S.engine = await ensureEngine('web-speech');
   }
+  showPlayerStatus('hidden');
 
   const saved = loadProgress(article.title);
   playFromWord(saved?.wordIdx ?? 0);
@@ -697,14 +723,27 @@ function playFromWord(startWordIdx) {
 
   if (!S.engine) return;
 
+  // Show generating status for non-system engines
+  if (S.engineId !== 'web-speech') {
+    showPlayerStatus('loading', 'Preparing audio\u2026');
+  }
+
   S.engine.speak(S.rawText, {
     rate: S.speeds[S.speedIdx],
     words: S.words,
     startWordIdx,
+    onProgress: (p) => {
+      if (p.phase === 'generating') {
+        showPlayerStatus('progress', 'Preparing audio\u2026',
+          'Sentence ' + p.current + ' of ' + p.total,
+          (p.current / p.total) * 100);
+      }
+    },
     onWord: (wordIdx) => {
       setActiveWord(wordIdx);
     },
     onStart: () => {
+      showPlayerStatus('hidden');
       S.isPlaying = true; S.isPaused = false;
       setPlayState(true);
       if (!S.rafId) tickProgress();
@@ -714,6 +753,7 @@ function playFromWord(startWordIdx) {
     },
     onError: (err) => {
       if (err?.error === 'interrupted' || err?.error === 'canceled') return;
+      showPlayerStatus('error', 'Playback error', err?.message || 'Something went wrong');
     }
   });
 }
@@ -925,6 +965,7 @@ function goBack() {
   if (S.engine) S.engine.stop();
   cancelAnimationFrame(S.rafId); S.rafId = null;
   S.isPlaying = false; S.isPaused = false;
+  showPlayerStatus('hidden');
   document.getElementById('player-controls').classList.remove('visible');
   showScreen('input-screen');
 }
@@ -949,6 +990,21 @@ function setError(msg) {
   const el = document.getElementById('error-box');
   el.textContent = msg;
   el.className = 'error-box' + (msg ? ' visible' : '');
+}
+function showPlayerStatus(type, message, detail, percent) {
+  const el = document.getElementById('player-status');
+  if (!el) return;
+  if (type === 'hidden') { el.className = ''; return; }
+  const msg = document.getElementById('ps-message');
+  const det = document.getElementById('ps-detail');
+  const bar = document.getElementById('ps-bar');
+  msg.textContent = message || '';
+  det.textContent = detail || '';
+  el.className = 'visible'
+    + (type === 'error' ? ' error' : '')
+    + (percent != null ? ' has-bar' : '')
+    + (type === 'loading' ? ' has-spinner' : '');
+  if (percent != null) bar.style.width = Math.round(percent) + '%';
 }
 let toastT;
 function toast(msg, ms=2500) {
