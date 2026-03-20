@@ -121,7 +121,7 @@ export class PiperEngine extends TTSEngine {
   }
 
   async speak(text, opts = {}) {
-    const { rate, words, onWord, onStart, onEnd, onError, startWordIdx = 0, onProgress } = opts;
+    const { rate, words, onWord, onStart, onEnd, onError, onProgress, startWordIdx = 0 } = opts;
     if (rate != null) this._rate = rate;
 
     this._player.stop();
@@ -141,83 +141,103 @@ export class PiperEngine extends TTSEngine {
 
       if (!sentences.length) return;
 
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const sentenceBuffers = [];
-
-      // Generate audio for each sentence using Piper
-      for (const sent of sentences) {
-        let samples, sampleRate;
-
-        if (this._piper.PiperTTS) {
-          // @mintplex-labs API
-          const tts = new this._piper.PiperTTS(this._modelUrl, this._config);
-          const result = await tts.synthesize(sent.text);
-          samples = new Float32Array(result.audio);
-          sampleRate = result.sampleRate || this._config.audio?.sample_rate || 22050;
-        } else if (this._piper.synthesize) {
-          const result = await this._piper.synthesize(sent.text, this._modelUrl, this._config);
-          samples = new Float32Array(result.audio || result);
-          sampleRate = result.sampleRate || this._config.audio?.sample_rate || 22050;
-        } else {
-          // Fallback: use Web Speech API if Piper API is unrecognized
-          throw new Error('Piper TTS API not recognized. Please update the library version.');
-        }
-
-        // Normalize to [-1, 1] if needed
-        let maxAbs = 0;
-        for (let i = 0; i < samples.length; i++) {
-          const a = Math.abs(samples[i]);
-          if (a > maxAbs) maxAbs = a;
-        }
-        if (maxAbs > 1) {
-          for (let i = 0; i < samples.length; i++) samples[i] /= maxAbs;
-        }
-
-        const audioBuffer = audioCtx.createBuffer(1, samples.length, sampleRate);
-        audioBuffer.copyToChannel(samples, 0);
-        const duration = samples.length / sampleRate;
-
-        // Estimate word timings proportionally
-        const sentWords = (words || []).filter(w =>
-          w.charStart >= sent.charOffset &&
-          w.charStart < sent.charOffset + sent.text.length
-        );
-        const wordTimings = estimateWordTimings(
-          sentWords, duration, sent.charOffset, sent.text.length
-        );
-
-        sentenceBuffers.push({
-          buffer: audioBuffer,
-          wordTimings,
-          text: sent.text,
-          charOffset: sent.charOffset
-        });
-      }
-
-      // Find starting sentence
+      // Find starting sentence based on startWordIdx
       let startSentenceIdx = 0;
       if (startWordIdx > 0 && words) {
-        for (let i = 0; i < sentenceBuffers.length; i++) {
-          const sb = sentenceBuffers[i];
-          if (sb.wordTimings.some(wt => wt.wordIdx >= startWordIdx)) {
+        const startChar = words[startWordIdx]?.charStart ?? 0;
+        for (let i = 0; i < sentences.length; i++) {
+          const sent = sentences[i];
+          if (startChar >= sent.charOffset && startChar < sent.charOffset + sent.text.length) {
             startSentenceIdx = i;
             break;
           }
+          if (sent.charOffset > startChar) { startSentenceIdx = Math.max(0, i - 1); break; }
+          startSentenceIdx = i;
         }
       }
 
-      const buffersToPlay = sentenceBuffers.slice(startSentenceIdx);
-      this._player.playSentences(buffersToPlay, {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const totalSentences = sentences.length - startSentenceIdx;
+
+      // Generate FIRST sentence and start playback immediately
+      if (onProgress) onProgress({ phase: 'generating', current: 1, total: totalSentences });
+      const firstBuffer = await this._generateSentenceBuffer(sentences[startSentenceIdx], words, audioCtx);
+
+      // Start playing the first sentence right away
+      this._player.playSentences([firstBuffer], {
         onWord,
-        onEnd,
+        onEnd: null,
         onStart,
         startWordIdx,
         rate: this._rate
       });
 
+      // Generate remaining sentences in background, appending as they're ready
+      for (let i = startSentenceIdx + 1; i < sentences.length; i++) {
+        if (!this._player.playing && !this._player.paused && !this._player._waitingForNext) break;
+        const buf = await this._generateSentenceBuffer(sentences[i], words, audioCtx);
+        this._player.appendSentence(buf);
+        if (onProgress) onProgress({
+          phase: 'generating',
+          current: i - startSentenceIdx + 1,
+          total: totalSentences
+        });
+      }
+
+      // All sentences generated — set final onEnd and finalize
+      this._player._onEnd = onEnd;
+      this._player.finalize();
+
     } catch (err) {
       if (onError) onError(err);
     }
+  }
+
+  async _generateSentenceBuffer(sent, words, audioCtx) {
+    let samples, sampleRate;
+
+    if (this._piper.PiperTTS) {
+      const tts = new this._piper.PiperTTS(this._modelUrl, this._config);
+      const result = await tts.synthesize(sent.text);
+      samples = new Float32Array(result.audio);
+      sampleRate = result.sampleRate || this._config.audio?.sample_rate || 22050;
+    } else if (this._piper.synthesize) {
+      const result = await this._piper.synthesize(sent.text, this._modelUrl, this._config);
+      samples = new Float32Array(result.audio || result);
+      sampleRate = result.sampleRate || this._config.audio?.sample_rate || 22050;
+    } else {
+      throw new Error('Piper TTS API not recognized. Please update the library version.');
+    }
+
+    // Normalize to [-1, 1] if needed
+    let maxAbs = 0;
+    for (let i = 0; i < samples.length; i++) {
+      const a = Math.abs(samples[i]);
+      if (a > maxAbs) maxAbs = a;
+    }
+    if (maxAbs > 1) {
+      for (let i = 0; i < samples.length; i++) samples[i] /= maxAbs;
+    }
+
+    const audioBuffer = audioCtx.createBuffer(1, samples.length, sampleRate);
+    audioBuffer.copyToChannel(samples, 0);
+    const duration = samples.length / sampleRate;
+
+    // Estimate word timings proportionally
+    const sentWords = (words || []).filter(w =>
+      w.charStart >= sent.charOffset &&
+      w.charStart < sent.charOffset + sent.text.length
+    );
+    const wordTimings = estimateWordTimings(
+      sentWords, duration, sent.charOffset, sent.text.length
+    );
+
+    return {
+      buffer: audioBuffer,
+      wordTimings,
+      text: sent.text,
+      charOffset: sent.charOffset
+    };
   }
 
   pause() {

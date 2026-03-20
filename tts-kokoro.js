@@ -81,14 +81,14 @@ export class KokoroEngine extends TTSEngine {
   }
 
   async speak(text, opts = {}) {
-    const { rate, words, onWord, onStart, onEnd, onError, startWordIdx = 0 } = opts;
+    const { rate, words, onWord, onStart, onEnd, onError, onProgress, startWordIdx = 0 } = opts;
     if (rate != null) this._rate = rate;
     if (!this._tts) throw new Error('Kokoro not initialized');
 
     this._player.stop();
 
     try {
-      // Split text into sentences for sequential generation
+      // Split text into sentences
       const sentences = [];
       const rx = /[^.!?\n]+[.!?\n]*/g;
       let m;
@@ -100,73 +100,94 @@ export class KokoroEngine extends TTSEngine {
 
       if (!sentences.length) return;
 
-      // Generate audio for each sentence and build timing data
-      const sentenceBuffers = [];
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-      for (const sent of sentences) {
-        const result = await this._tts.generate(sent.text, {
-          voice: this._voiceId,
-        });
-
-        // Convert to AudioBuffer
-        const audioData = result.audio;
-        const sampleRate = result.sampling_rate || 24000;
-        let samples;
-        if (audioData instanceof Float32Array) {
-          samples = audioData;
-        } else if (audioData?.data) {
-          samples = new Float32Array(audioData.data);
-        } else {
-          samples = new Float32Array(audioData);
-        }
-
-        const audioBuffer = audioCtx.createBuffer(1, samples.length, sampleRate);
-        audioBuffer.copyToChannel(samples, 0);
-        const duration = samples.length / sampleRate;
-
-        // Estimate word timings for this sentence
-        const sentWords = (words || []).filter(w =>
-          w.charStart >= sent.charOffset &&
-          w.charStart < sent.charOffset + sent.text.length
-        );
-        const wordTimings = estimateWordTimings(
-          sentWords, duration, sent.charOffset, sent.text.length
-        );
-
-        sentenceBuffers.push({
-          buffer: audioBuffer,
-          wordTimings,
-          text: sent.text,
-          charOffset: sent.charOffset
-        });
-      }
-
-      // Find first buffer that contains startWordIdx
+      // Find starting sentence based on startWordIdx
       let startSentenceIdx = 0;
       if (startWordIdx > 0 && words) {
-        for (let i = 0; i < sentenceBuffers.length; i++) {
-          const sb = sentenceBuffers[i];
-          if (sb.wordTimings.some(wt => wt.wordIdx >= startWordIdx)) {
+        const startChar = words[startWordIdx]?.charStart ?? 0;
+        for (let i = 0; i < sentences.length; i++) {
+          const sent = sentences[i];
+          if (startChar >= sent.charOffset && startChar < sent.charOffset + sent.text.length) {
             startSentenceIdx = i;
             break;
           }
+          if (sent.charOffset > startChar) { startSentenceIdx = Math.max(0, i - 1); break; }
+          startSentenceIdx = i;
         }
       }
 
-      // Play using AudioBufferPlayer
-      const buffersToPlay = sentenceBuffers.slice(startSentenceIdx);
-      this._player.playSentences(buffersToPlay, {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const totalSentences = sentences.length - startSentenceIdx;
+
+      // Generate FIRST sentence and start playback immediately
+      if (onProgress) onProgress({ phase: 'generating', current: 1, total: totalSentences });
+      const firstBuffer = await this._generateSentenceBuffer(sentences[startSentenceIdx], words, audioCtx);
+
+      // Start playing the first sentence right away
+      this._player.playSentences([firstBuffer], {
         onWord,
-        onEnd,
+        onEnd: null,  // Don't end yet — more sentences coming
         onStart,
         startWordIdx,
         rate: this._rate
       });
 
+      // Generate remaining sentences in background, appending as they're ready
+      for (let i = startSentenceIdx + 1; i < sentences.length; i++) {
+        if (!this._player.playing && !this._player.paused && !this._player._waitingForNext) break; // stopped
+        const buf = await this._generateSentenceBuffer(sentences[i], words, audioCtx);
+        this._player.appendSentence(buf);
+        if (onProgress) onProgress({
+          phase: 'generating',
+          current: i - startSentenceIdx + 1,
+          total: totalSentences
+        });
+      }
+
+      // All sentences generated — set final onEnd and finalize
+      this._player._onEnd = onEnd;
+      this._player.finalize();
+
     } catch (err) {
       if (onError) onError(err);
     }
+  }
+
+  async _generateSentenceBuffer(sent, words, audioCtx) {
+    const result = await this._tts.generate(sent.text, {
+      voice: this._voiceId,
+    });
+
+    // Convert to AudioBuffer
+    const audioData = result.audio;
+    const sampleRate = result.sampling_rate || 24000;
+    let samples;
+    if (audioData instanceof Float32Array) {
+      samples = audioData;
+    } else if (audioData?.data) {
+      samples = new Float32Array(audioData.data);
+    } else {
+      samples = new Float32Array(audioData);
+    }
+
+    const audioBuffer = audioCtx.createBuffer(1, samples.length, sampleRate);
+    audioBuffer.copyToChannel(samples, 0);
+    const duration = samples.length / sampleRate;
+
+    // Estimate word timings for this sentence
+    const sentWords = (words || []).filter(w =>
+      w.charStart >= sent.charOffset &&
+      w.charStart < sent.charOffset + sent.text.length
+    );
+    const wordTimings = estimateWordTimings(
+      sentWords, duration, sent.charOffset, sent.text.length
+    );
+
+    return {
+      buffer: audioBuffer,
+      wordTimings,
+      text: sent.text,
+      charOffset: sent.charOffset
+    };
   }
 
   pause() {
