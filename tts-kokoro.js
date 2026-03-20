@@ -34,6 +34,13 @@ const KOKORO_VOICES = [
   { id: 'bm_george', name: 'George (Male, British)', lang: 'en-GB' },
 ];
 
+function withTimeout(promise, ms, label = 'Operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label + ' timed out after ' + (ms / 1000) + 's')), ms))
+  ]);
+}
+
 export class KokoroEngine extends TTSEngine {
   constructor() {
     super('kokoro', 'Kokoro');
@@ -153,9 +160,10 @@ export class KokoroEngine extends TTSEngine {
   }
 
   async _generateSentenceBuffer(sent, words, audioCtx) {
-    const result = await this._tts.generate(sent.text, {
-      voice: this._voiceId,
-    });
+    const result = await withTimeout(
+      this._tts.generate(sent.text, { voice: this._voiceId }),
+      60000, 'Audio generation'
+    );
 
     // Convert to AudioBuffer
     const audioData = result.audio;

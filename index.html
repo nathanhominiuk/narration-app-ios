@@ -100,7 +100,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
 #ps-detail{font-size:12px;color:var(--muted)}
 #ps-bar-wrap{width:100%;max-width:280px;display:none}
 #player-status.has-bar #ps-bar-wrap{display:block}
-#ps-spinner{display:none}
+#ps-spinner{display:none;width:20px;height:20px;border:2.5px solid rgba(255,255,255,0.15);
+  border-top-color:var(--gold);border-radius:50%;animation:spin 0.7s linear infinite}
 #player-status.has-spinner #ps-spinner{display:block}
 #player-status.error #ps-message{color:#e07070}
 
@@ -320,6 +321,9 @@ textarea{min-height:130px}
     <div id="ps-message"></div>
     <div id="ps-detail"></div>
     <div id="ps-bar-wrap" class="dl-bar-wrap"><div id="ps-bar" class="dl-bar"></div></div>
+    <button id="ps-fallback" onclick="fallbackToSystemVoice()" style="display:none;margin-top:12px;
+      padding:8px 20px;background:var(--gold);color:var(--ink);border:none;border-radius:6px;
+      font-family:var(--ff-sans);font-size:13px;font-weight:500;cursor:pointer">Use System Voice</button>
   </div>
   <div id="transcript-scroll">
     <div id="article-source"></div>
@@ -994,17 +998,26 @@ function setError(msg) {
 function showPlayerStatus(type, message, detail, percent) {
   const el = document.getElementById('player-status');
   if (!el) return;
-  if (type === 'hidden') { el.className = ''; return; }
+  if (type === 'hidden') { el.className = ''; document.getElementById('ps-fallback').style.display = 'none'; return; }
   const msg = document.getElementById('ps-message');
   const det = document.getElementById('ps-detail');
   const bar = document.getElementById('ps-bar');
+  const fb = document.getElementById('ps-fallback');
   msg.textContent = message || '';
   det.textContent = detail || '';
   el.className = 'visible'
     + (type === 'error' ? ' error' : '')
     + (percent != null ? ' has-bar' : '')
-    + (type === 'loading' ? ' has-spinner' : '');
+    + (type === 'loading' || type === 'progress' ? ' has-spinner' : '');
   if (percent != null) bar.style.width = Math.round(percent) + '%';
+  fb.style.display = type === 'error' ? 'inline-block' : 'none';
+}
+async function fallbackToSystemVoice() {
+  if (S.engine) S.engine.stop();
+  S.engineId = 'web-speech';
+  S.engine = await ensureEngine('web-speech');
+  showPlayerStatus('hidden');
+  playFromWord(S.currentWordIdx || 0);
 }
 let toastT;
 function toast(msg, ms=2500) {
