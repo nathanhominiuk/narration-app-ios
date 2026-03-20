@@ -20,7 +20,6 @@
 :root{
   --ink:#1a1714;--ink2:#3d3830;--muted:#8a8070;--rule:#2e2b27;
   --surface:#211e1b;--gold:#c9a84c;--gold-dim:#7a6530;--paper:#f5f0e8;
-  --red:#c0503a;--red-bg:rgba(192,80,58,0.1);
   --ff-serif:'Lora',Georgia,serif;--ff-sans:'DM Sans',system-ui,sans-serif;
   --safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px);
   --safe-l:env(safe-area-inset-left,0px);--safe-r:env(safe-area-inset-right,0px);
@@ -50,28 +49,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
   text-transform:uppercase;color:var(--gold);margin-bottom:2px}
 .tagline{font-size:12px;color:var(--muted);letter-spacing:0.04em}
 
-/* Voice bar */
-#voice-bar{
-  display:flex;align-items:center;gap:10px;
-  padding:11px 14px;background:var(--surface);
-  border:1px solid var(--rule);border-radius:10px;cursor:pointer;
-  -webkit-tap-highlight-color:transparent}
-#voice-bar-icon{font-size:18px;flex-shrink:0}
-#voice-bar-info{flex:1;min-width:0}
-#voice-bar-name{font-size:13px;font-weight:500;color:var(--paper);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#voice-bar-tier{font-size:11px;color:var(--muted);margin-top:1px}
-#voice-bar-chevron{color:var(--muted);flex-shrink:0}
-#voice-bar-chevron svg{width:16px;height:16px;display:block}
-
-/* Compact warning */
-#compact-warning{
-  display:none;padding:12px 14px;
-  background:var(--red-bg);border:1px solid rgba(192,80,58,0.35);
-  border-radius:10px;font-size:13px;color:#e07a6a;line-height:1.6}
-#compact-warning.visible{display:block}
-#compact-warning a{color:#e09a8a;text-underline-offset:2px}
-#compact-warning strong{color:#e07a6a}
+/* Voice instruction card */
+.voice-instruction{padding:13px 15px;background:rgba(201,168,76,0.07);
+  border:1px solid rgba(201,168,76,0.2);border-radius:10px}
+.vi-title{font-size:13px;font-weight:500;color:var(--gold);margin-bottom:6px}
+.vi-body{font-size:12px;color:var(--muted);line-height:1.65}
+.vi-body strong{color:rgba(245,240,232,0.7)}
 
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid var(--rule)}
@@ -118,53 +101,7 @@ textarea{min-height:130px}
 .info-row .dot{width:5px;height:5px;border-radius:50%;background:var(--gold-dim);
   flex-shrink:0;margin-top:5px}
 
-/* ══ VOICE SHEET ══ */
-#voice-sheet{
-  position:fixed;inset:0;z-index:100;display:none;
-  flex-direction:column;justify-content:flex-end}
-#voice-sheet.open{display:flex}
-#voice-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6);
-  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-#voice-panel{
-  position:relative;background:#1e1b18;
-  border-radius:20px 20px 0 0;
-  padding:0 0 calc(var(--safe-b) + 8px);
-  max-height:72dvh;display:flex;flex-direction:column;
-  box-shadow:0 -4px 40px rgba(0,0,0,0.5)}
-#voice-handle{width:36px;height:4px;background:var(--rule);border-radius:2px;
-  margin:12px auto 0}
-#voice-sheet-title{padding:14px 20px 10px;font-size:11px;font-weight:500;
-  letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);
-  border-bottom:1px solid var(--rule)}
-#no-neural-tip{
-  display:none;margin:12px 16px 0;padding:12px 14px;
-  background:var(--red-bg);border:1px solid rgba(192,80,58,0.3);
-  border-radius:10px;font-size:12px;color:#e07a6a;line-height:1.6}
-#no-neural-tip.visible{display:block}
-#no-neural-tip a{color:#e09a8a}
-#voice-list{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;padding:6px 0}
 
-.voice-item{display:flex;align-items:center;padding:13px 20px;gap:12px;
-  cursor:pointer;-webkit-tap-highlight-color:transparent;
-  transition:background .1s;border-bottom:1px solid rgba(46,43,39,0.5)}
-.voice-item:last-child{border-bottom:none}
-.voice-item:active{background:rgba(255,255,255,0.04)}
-.voice-item.selected{background:rgba(201,168,76,0.07)}
-.vi-left{flex:1;min-width:0}
-.vi-name{font-size:15px;font-weight:500;color:var(--paper)}
-.vi-meta{font-size:11px;color:var(--muted);margin-top:2px}
-.vi-tier{display:inline-flex;align-items:center;gap:4px;
-  font-size:10px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;
-  padding:2px 7px;border-radius:4px;margin-right:6px}
-.tier-premium{background:rgba(201,168,76,0.15);color:var(--gold)}
-.tier-enhanced{background:rgba(100,180,120,0.15);color:#7ec89a}
-.tier-compact{background:rgba(100,100,100,0.15);color:#888}
-.vi-check{color:var(--gold);font-size:18px;opacity:0;flex-shrink:0}
-.voice-item.selected .vi-check{opacity:1}
-.vi-preview{background:none;border:1px solid var(--rule);border-radius:6px;
-  padding:4px 10px;font-size:11px;color:var(--muted);cursor:pointer;
-  -webkit-tap-highlight-color:transparent;flex-shrink:0;margin-right:8px}
-.vi-preview:active{background:rgba(255,255,255,0.06)}
 
 /* ══ PLAYER SCREEN ══ */
 #player-screen{flex-direction:column;min-height:100dvh}
@@ -269,24 +206,16 @@ textarea{min-height:130px}
   <div class="wordmark">Legible</div>
   <div class="tagline">Listen to any article · on-device · no account</div>
 
-  <!-- Voice selector bar -->
-  <div id="voice-bar" onclick="openVoiceSheet()">
-    <span id="voice-bar-icon">🎙</span>
-    <div id="voice-bar-info">
-      <div id="voice-bar-name">Loading voices…</div>
-      <div id="voice-bar-tier"></div>
+  <!-- Voice instruction card -->
+  <div class="voice-instruction">
+    <div class="vi-title">🎙 For the best voice quality</div>
+    <div class="vi-body">
+      Go to <strong>Settings → Accessibility → Spoken Content → Voices → English</strong>,
+      download <strong>Ava (Premium)</strong> or any Enhanced/Premium voice,
+      then set it as your default by tapping it and choosing <strong>"Use Voice"</strong>.<br><br>
+      The app will use whatever voice is set as your system default — Neural voices
+      sound dramatically better than the built-in compact ones.
     </div>
-    <span id="voice-bar-chevron">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-    </span>
-  </div>
-
-  <!-- Compact-only warning -->
-  <div id="compact-warning">
-    <strong>⚠ Only low-quality voices found.</strong> To get Neural (natural-sounding) voices:
-    go to <strong>Settings → Accessibility → Spoken Content → Voices → English</strong>,
-    tap a voice and download the <strong>Enhanced</strong> or <strong>Premium</strong> version.
-    Then reopen this app.
   </div>
 
   <div class="tabs" role="tablist">
@@ -370,22 +299,7 @@ textarea{min-height:130px}
   </div>
 </div>
 
-<!-- ══ VOICE SHEET ══ -->
-<div id="voice-sheet">
-  <div id="voice-backdrop" onclick="closeVoiceSheet()"></div>
-  <div id="voice-panel">
-    <div id="voice-handle"></div>
-    <div id="voice-sheet-title">Choose voice</div>
-    <div id="no-neural-tip">
-      No Enhanced or Premium voices found. Go to
-      <a href="app-settings:" onclick="event.preventDefault();toast('Go to Settings → Accessibility → Spoken Content → Voices → English',4000)">
-        Settings → Accessibility → Spoken Content → Voices → English
-      </a>
-      and download an Enhanced or Premium voice for natural-sounding narration.
-    </div>
-    <div id="voice-list"></div>
-  </div>
-</div>
+
 
 <div id="toast"></div>
 
@@ -410,163 +324,13 @@ const S = {
   startedAt:0,
   speeds:[0.7,0.8,1,1.1,1.25,1.5,1.75,2],
   speedIdx:2,
-  allVoices:[],   // scored + sorted
-  voice:null,
   rafId:null,
 };
-
-// ═══════════════════════════
-//  Voice quality system
-// ═══════════════════════════
-
-// Score a voice: higher = better quality.
-// iOS encodes tier in the name: "Ava (Premium)", "Samantha (Enhanced)", "Samantha"
-function voiceTier(v) {
-  const n = v.name;
-  if (/premium/i.test(n))  return 3;
-  if (/enhanced/i.test(n)) return 2;
-  if (/compact/i.test(n))  return 0;
-  // No suffix — could be enhanced on older iOS, or compact.
-  // Prefer if it's a known Neural name without the "(Compact)" tag.
-  return 1;
-}
-
-function tierLabel(tier) {
-  if (tier === 3) return 'Premium · Neural';
-  if (tier === 2) return 'Enhanced · Neural';
-  if (tier === 1) return 'Standard';
-  return 'Compact · low quality';
-}
-
-function tierClass(tier) {
-  if (tier >= 2) return 'tier-premium';
-  if (tier === 1) return 'tier-enhanced';
-  return 'tier-compact';
-}
-
-function tierEmoji(tier) {
-  if (tier >= 2) return '✦';
-  if (tier === 1) return '◆';
-  return '◇';
-}
-
-function scoreVoice(v) {
-  const tier = voiceTier(v);
-  // Prefer en-US, then en-GB, then any English
-  const langBonus = v.lang === 'en-US' ? 10 : v.lang === 'en-GB' ? 8 : v.lang.startsWith('en') ? 5 : 0;
-  // Local voices only (remote = worse latency, may not work offline)
-  const localBonus = v.localService ? 4 : 0;
-  return tier * 20 + langBonus + localBonus;
-}
-
-function initVoices() {
-  const raw = speechSynthesis.getVoices();
-  if (!raw.length) return;
-
-  // Keep only English voices, scored and sorted
-  S.allVoices = raw
-    .filter(v => v.lang.startsWith('en'))
-    .map(v => ({ v, score: scoreVoice(v), tier: voiceTier(v) }))
-    .sort((a, b) => b.score - a.score)
-    .map(x => x.v);
-
-  // Default: highest-scored voice
-  if (!S.voice) {
-    S.voice = S.allVoices[0] || raw[0];
-  }
-
-  updateVoiceBar();
-  checkCompactWarning();
-  buildVoiceList();
-}
-
-function updateVoiceBar() {
-  if (!S.voice) return;
-  const tier = voiceTier(S.voice);
-  const clean = S.voice.name.replace(/\s*\((Premium|Enhanced|Compact)\)/i,'').trim();
-  document.getElementById('voice-bar-name').textContent = clean;
-  document.getElementById('voice-bar-tier').textContent = tierLabel(tier);
-  document.getElementById('voice-bar-icon').textContent = tier >= 2 ? '🎙' : '📢';
-}
-
-function checkCompactWarning() {
-  const best = S.allVoices[0];
-  const hasNeural = best && voiceTier(best) >= 2;
-  document.getElementById('compact-warning').classList.toggle('visible', !hasNeural);
-}
-
-function buildVoiceList() {
-  const list = document.getElementById('voice-list');
-  list.innerHTML = '';
-
-  const hasNeural = S.allVoices.some(v => voiceTier(v) >= 2);
-  document.getElementById('no-neural-tip').classList.toggle('visible', !hasNeural);
-
-  S.allVoices.forEach(v => {
-    const tier = voiceTier(v);
-    const clean = v.name.replace(/\s*\((Premium|Enhanced|Compact)\)/i,'').trim();
-    const isSelected = v === S.voice;
-
-    const item = document.createElement('div');
-    item.className = 'voice-item' + (isSelected ? ' selected' : '');
-    item.innerHTML = `
-      <div class="vi-left">
-        <div class="vi-name">${esc(clean)}</div>
-        <div class="vi-meta">
-          <span class="vi-tier ${tierClass(tier)}">${tierEmoji(tier)} ${tierLabel(tier)}</span>
-          ${v.lang}
-        </div>
-      </div>
-      <button class="vi-preview" onclick="previewVoice(event,'${esc(v.name)}')">Preview</button>
-      <span class="vi-check">✓</span>`;
-
-    item.addEventListener('click', (e) => {
-      if (e.target.closest('.vi-preview')) return;
-      S.voice = v;
-      updateVoiceBar();
-      checkCompactWarning();
-      buildVoiceList();
-      closeVoiceSheet();
-    });
-    list.appendChild(item);
-  });
-}
-
-function previewVoice(e, name) {
-  e.stopPropagation();
-  speechSynthesis.cancel();
-  const v = S.allVoices.find(x => x.name === name);
-  if (!v) return;
-  const utt = new SpeechSynthesisUtterance('This is how I sound reading an article aloud.');
-  utt.voice = v;
-  utt.rate = S.speeds[S.speedIdx];
-  speechSynthesis.speak(utt);
-}
-
-function openVoiceSheet() {
-  buildVoiceList();
-  document.getElementById('voice-sheet').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeVoiceSheet() {
-  speechSynthesis.cancel();
-  document.getElementById('voice-sheet').classList.remove('open');
-  document.body.style.overflow = '';
-}
 
 // ═══════════════════════════
 //  Boot
 // ═══════════════════════════
 window.addEventListener('load', () => {
-  // iOS delivers voices asynchronously; poll until available
-  function tryInit() {
-    const v = speechSynthesis.getVoices();
-    if (v.length) { initVoices(); }
-    else { setTimeout(tryInit, 150); }
-  }
-  speechSynthesis.onvoiceschanged = initVoices;
-  tryInit();
   setupScrubber();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 });
@@ -685,7 +449,7 @@ function buildUtterances(text) {
     const sentText = m[0].trim();
     if (sentText.length < 3) continue;
     const utt = new SpeechSynthesisUtterance(sentText);
-    if (S.voice) utt.voice = S.voice;
+    // voice intentionally not set — iOS Safari uses Spoken Content default
     utt.rate = S.speeds[S.speedIdx];
     utt.volume = 1;
     utt._charOffset = m.index;
