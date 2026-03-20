@@ -49,12 +49,48 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
   text-transform:uppercase;color:var(--gold);margin-bottom:2px}
 .tagline{font-size:12px;color:var(--muted);letter-spacing:0.04em}
 
-/* Voice instruction card */
-.voice-instruction{padding:13px 15px;background:rgba(201,168,76,0.07);
+/* Engine selector */
+.engine-section{padding:13px 15px;background:rgba(201,168,76,0.07);
   border:1px solid rgba(201,168,76,0.2);border-radius:10px}
-.vi-title{font-size:13px;font-weight:500;color:var(--gold);margin-bottom:6px}
-.vi-body{font-size:12px;color:var(--muted);line-height:1.65}
-.vi-body strong{color:rgba(245,240,232,0.7)}
+.engine-label{font-size:10px;font-weight:500;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.engine-pills{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;padding-bottom:2px}
+.engine-pills::-webkit-scrollbar{display:none}
+.engine-pill{flex-shrink:0;padding:7px 14px;font-family:var(--ff-sans);font-size:12px;
+  font-weight:500;color:var(--muted);background:var(--surface);border:1px solid var(--rule);
+  border-radius:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;transition:color .15s,border-color .15s,background .15s;
+  white-space:nowrap}
+.engine-pill.active{color:var(--gold);border-color:var(--gold);
+  background:rgba(201,168,76,0.12)}
+.engine-pill .pill-status{display:inline-block;width:6px;height:6px;border-radius:50%;
+  margin-left:5px;vertical-align:middle}
+.engine-pill .pill-status.ready{background:#5a5}
+.engine-pill .pill-status.loading{background:var(--gold);animation:pulse 1s infinite}
+.engine-pill .pill-status.error{background:#e07070}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* Voice dropdown */
+.voice-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.voice-row .field-label{flex-shrink:0;margin:0}
+#voice-select{flex:1;padding:8px 12px;background:var(--surface);border:1px solid var(--rule);
+  border-radius:8px;color:var(--paper);font-family:var(--ff-sans);font-size:13px;
+  outline:none;-webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238a8070'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+#voice-select:focus{border-color:var(--gold-dim)}
+
+/* Download progress */
+.dl-progress{margin-top:8px;display:none}
+.dl-progress.visible{display:block}
+.dl-bar-wrap{height:4px;background:var(--rule);border-radius:2px;overflow:hidden}
+.dl-bar{height:100%;background:var(--gold);border-radius:2px;width:0%;
+  transition:width .2s linear}
+.dl-label{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* Engine info note */
+.engine-note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}
 
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid var(--rule)}
@@ -206,16 +242,25 @@ textarea{min-height:130px}
   <div class="wordmark">Legible</div>
   <div class="tagline">Listen to any article · on-device · no account</div>
 
-  <!-- Voice instruction card -->
-  <div class="voice-instruction">
-    <div class="vi-title">🎙 For the best voice quality</div>
-    <div class="vi-body">
-      Go to <strong>Settings → Accessibility → Spoken Content → Voices → English</strong>,
-      download <strong>Ava (Premium)</strong> or any Enhanced/Premium voice,
-      then set it as your default by tapping it and choosing <strong>"Use Voice"</strong>.<br><br>
-      The app will use whatever voice is set as your system default — Neural voices
-      sound dramatically better than the built-in compact ones.
+  <!-- Engine & voice selector -->
+  <div class="engine-section" id="engine-section">
+    <div class="engine-label">Voice Engine</div>
+    <div class="engine-pills" id="engine-pills">
+      <button class="engine-pill active" data-engine="web-speech" onclick="selectEngine('web-speech')">System</button>
+      <button class="engine-pill" data-engine="kokoro" onclick="selectEngine('kokoro')">Kokoro</button>
+      <button class="engine-pill" data-engine="piper" onclick="selectEngine('piper')">Piper</button>
     </div>
+    <div class="voice-row">
+      <div class="field-label">Voice</div>
+      <select id="voice-select" onchange="selectVoice(this.value)">
+        <option value="">System default</option>
+      </select>
+    </div>
+    <div class="dl-progress" id="dl-progress">
+      <div class="dl-bar-wrap"><div class="dl-bar" id="dl-bar"></div></div>
+      <div class="dl-label" id="dl-label">Downloading model…</div>
+    </div>
+    <div class="engine-note" id="engine-note"></div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -314,8 +359,6 @@ const S = {
   article:null,
   words:[],
   rawText:'',
-  utterances:[],
-  currentUttIdx:0,
   currentWordIdx:0,
   isPlaying:false,
   isPaused:false,
@@ -325,7 +368,54 @@ const S = {
   speeds:[0.7,0.8,1,1.1,1.25,1.5,1.75,2],
   speedIdx:2,
   rafId:null,
+  // Engine state
+  engineId:'web-speech',
+  engine:null,
+  voiceId:null,
 };
+
+// Engine module cache
+let _engineModules = null;
+
+async function getEngineModules() {
+  if (!_engineModules) {
+    _engineModules = await import('./tts-engines.js');
+  }
+  return _engineModules;
+}
+
+async function ensureEngine(engineId) {
+  const mod = await getEngineModules();
+
+  // Lazy-load engine-specific modules
+  if (engineId === 'kokoro' && !mod.getEngine('kokoro')) {
+    await import('./tts-kokoro.js');
+  } else if (engineId === 'piper' && !mod.getEngine('piper')) {
+    await import('./tts-piper.js');
+  }
+
+  const engine = mod.getEngine(engineId);
+  if (!engine) throw new Error('Unknown engine: ' + engineId);
+
+  // Initialize if needed
+  if (engine.status === 'not-loaded' || engine.status === 'error') {
+    updatePillStatus(engineId, 'loading');
+    showDownloadProgress(true);
+    try {
+      await engine.init((progress) => {
+        updateDownloadBar(progress.percent, progress.file);
+      });
+      updatePillStatus(engineId, 'ready');
+    } catch (err) {
+      updatePillStatus(engineId, 'error');
+      showDownloadProgress(false);
+      throw err;
+    }
+    showDownloadProgress(false);
+  }
+
+  return engine;
+}
 
 // ═══════════════════════════
 //  Boot
@@ -333,7 +423,126 @@ const S = {
 window.addEventListener('load', () => {
   setupScrubber();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  restoreEnginePrefs();
 });
+
+// ═══════════════════════════
+//  Engine selection
+// ═══════════════════════════
+async function selectEngine(engineId) {
+  S.engineId = engineId;
+
+  // Update pill UI
+  document.querySelectorAll('.engine-pill').forEach(p => p.classList.remove('active'));
+  const pill = document.querySelector(`[data-engine="${engineId}"]`);
+  if (pill) pill.classList.add('active');
+
+  // Update engine note
+  const note = document.getElementById('engine-note');
+  if (engineId === 'web-speech') {
+    note.textContent = 'Uses your device\'s built-in speech synthesis.';
+  } else if (engineId === 'kokoro') {
+    note.textContent = 'Neural TTS, 82M params. ~80 MB download on first use.';
+  } else if (engineId === 'piper') {
+    note.textContent = 'VITS-based TTS. ~75 MB download on first use.';
+  }
+
+  // Update voices dropdown
+  await populateVoices(engineId);
+
+  // Persist
+  saveEnginePrefs();
+}
+
+async function populateVoices(engineId) {
+  const sel = document.getElementById('voice-select');
+  sel.innerHTML = '';
+
+  try {
+    const mod = await getEngineModules();
+
+    // For Kokoro/Piper, we can get voices without fully initializing
+    if (engineId === 'kokoro') {
+      if (!mod.getEngine('kokoro')) await import('./tts-kokoro.js');
+    } else if (engineId === 'piper') {
+      if (!mod.getEngine('piper')) await import('./tts-piper.js');
+    }
+
+    const engine = mod.getEngine(engineId);
+    if (!engine) { sel.innerHTML = '<option value="">Default</option>'; return; }
+
+    const voices = await engine.getVoices();
+    if (!voices.length) {
+      sel.innerHTML = '<option value="">System default</option>';
+      return;
+    }
+
+    for (const v of voices) {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = v.name + (v.lang ? ' (' + v.lang + ')' : '');
+      sel.appendChild(opt);
+    }
+
+    // Restore saved voice
+    if (S.voiceId) sel.value = S.voiceId;
+  } catch {
+    sel.innerHTML = '<option value="">Default</option>';
+  }
+}
+
+function selectVoice(voiceId) {
+  S.voiceId = voiceId;
+  saveEnginePrefs();
+}
+
+function saveEnginePrefs() {
+  try {
+    localStorage.setItem('legible:engine', JSON.stringify({
+      engineId: S.engineId, voiceId: S.voiceId
+    }));
+  } catch {}
+}
+
+function restoreEnginePrefs() {
+  try {
+    const d = JSON.parse(localStorage.getItem('legible:engine'));
+    if (d?.engineId) {
+      S.engineId = d.engineId;
+      S.voiceId = d.voiceId || null;
+      selectEngine(d.engineId);
+      if (d.voiceId) {
+        setTimeout(() => {
+          const sel = document.getElementById('voice-select');
+          if (sel) sel.value = d.voiceId;
+        }, 200);
+      }
+    }
+  } catch {}
+}
+
+function updatePillStatus(engineId, status) {
+  const pill = document.querySelector(`[data-engine="${engineId}"]`);
+  if (!pill) return;
+  let dot = pill.querySelector('.pill-status');
+  if (!dot && status !== 'not-loaded') {
+    dot = document.createElement('span');
+    dot.className = 'pill-status';
+    pill.appendChild(dot);
+  }
+  if (dot) dot.className = 'pill-status ' + status;
+}
+
+function showDownloadProgress(show) {
+  const el = document.getElementById('dl-progress');
+  el.className = 'dl-progress' + (show ? ' visible' : '');
+}
+
+function updateDownloadBar(percent, file) {
+  document.getElementById('dl-bar').style.width = Math.round(percent) + '%';
+  document.getElementById('dl-label').textContent =
+    'Downloading' + (file ? ' ' + file.split('/').pop() : '') + '… ' + Math.round(percent) + '%';
+}
 
 // ═══════════════════════════
 //  Tab
@@ -428,7 +637,7 @@ async function startListening() {
     }
     S.article = article;
     S.rawText = article.text;
-    beginNarration(article);
+    await beginNarration(article);
   } catch(e) {
     setError(e.message || 'Something went wrong.');
   } finally {
@@ -439,7 +648,7 @@ async function startListening() {
 // ═══════════════════════════
 //  Narration
 // ═══════════════════════════
-function beginNarration(article) {
+async function beginNarration(article) {
   S.words = tokenise(article.text);
   S.estDuration = (S.words.length / (150 * S.speeds[S.speedIdx])) * 60;
   renderHeader(article);
@@ -447,7 +656,18 @@ function beginNarration(article) {
   showScreen('player-screen');
   document.getElementById('player-controls').classList.add('visible');
   document.getElementById('t-dur').textContent = fmt(S.estDuration);
-  buildUtterances(article.text);
+
+  // Initialize the selected engine
+  try {
+    S.engine = await ensureEngine(S.engineId);
+    if (S.voiceId) S.engine.setVoice(S.voiceId);
+  } catch (err) {
+    // Fall back to web-speech if engine fails to load
+    toast('Engine failed, using System voice');
+    S.engineId = 'web-speech';
+    S.engine = await ensureEngine('web-speech');
+  }
+
   const saved = loadProgress(article.title);
   playFromWord(saved?.wordIdx ?? 0);
   setupMediaSession(article.title, article.source);
@@ -465,88 +685,37 @@ function tokenise(text) {
   return words;
 }
 
-function buildUtterances(text) {
-  S.utterances = [];
-  const rx = /[^.!?\n]+[.!?\n]*/g;
-  let m;
-  while ((m = rx.exec(text)) !== null) {
-    const sentText = m[0].trim();
-    if (sentText.length < 3) continue;
-    const utt = new SpeechSynthesisUtterance(sentText);
-    // voice intentionally not set — iOS Safari uses Spoken Content default
-    utt.rate = S.speeds[S.speedIdx];
-    utt.volume = 1;
-    utt._charOffset = m.index;
-    utt._sentText = sentText;
-    S.utterances.push(utt);
-  }
-}
-
 function playFromWord(startWordIdx) {
-  speechSynthesis.cancel();
+  if (S.engine) S.engine.stop();
   S.isPlaying = false; S.isPaused = false;
   S.currentWordIdx = startWordIdx;
   lastHighlight = -1;
 
   const startChar = S.words[startWordIdx]?.charStart ?? 0;
-  let startUttIdx = 0;
-  for (let i = 0; i < S.utterances.length; i++) {
-    const utt = S.utterances[i];
-    if (utt._charOffset <= startChar &&
-        startChar < utt._charOffset + utt._sentText.length) {
-      startUttIdx = i; break;
-    }
-    if (utt._charOffset > startChar) { startUttIdx = Math.max(0,i-1); break; }
-    startUttIdx = i;
-  }
-
-  S.currentUttIdx = startUttIdx;
   S.elapsedAtPause = (startChar / Math.max(1, S.rawText.length)) * S.estDuration;
   S.startedAt = performance.now();
-  queueUtterances(startUttIdx);
-}
 
-function queueUtterances(fromIdx) {
-  for (let i = fromIdx; i < S.utterances.length; i++) {
-    const utt = S.utterances[i];
-    const uttIdx = i;
+  if (!S.engine) return;
 
-    utt.onboundary = (e) => {
-      if (e.name !== 'word') return;
-      const charInFull = utt._charOffset + e.charIndex;
-      const charLen    = e.charLength ?? 1;
-      // Find the exact word whose char span contains this boundary
-      let best = S.currentWordIdx;
-      const lo = Math.max(0, S.currentWordIdx - 1);
-      const hi = Math.min(S.words.length - 1, S.currentWordIdx + 40);
-      for (let wi = lo; wi <= hi; wi++) {
-        const w = S.words[wi];
-        if (w.charStart >= charInFull && w.charStart < charInFull + charLen + 4) {
-          best = wi; break;
-        }
-        if (w.charStart <= charInFull) best = wi;
-      }
-      setActiveWord(best);
-    };
-
-    utt.onstart = () => {
-      S.currentUttIdx = uttIdx;
+  S.engine.speak(S.rawText, {
+    rate: S.speeds[S.speedIdx],
+    words: S.words,
+    startWordIdx,
+    onWord: (wordIdx) => {
+      setActiveWord(wordIdx);
+    },
+    onStart: () => {
       S.isPlaying = true; S.isPaused = false;
       setPlayState(true);
       if (!S.rafId) tickProgress();
-    };
-
-    utt.onend = () => {
-      if (S.isPaused) return;
-      if (uttIdx === S.utterances.length - 1) onFinished();
-    };
-
-    utt.onerror = (e) => {
-      if (e.error === 'interrupted' || e.error === 'canceled') return;
-    };
-
-    speechSynthesis.speak(utt);
-  }
+    },
+    onEnd: () => {
+      onFinished();
+    },
+    onError: (err) => {
+      if (err?.error === 'interrupted' || err?.error === 'canceled') return;
+    }
+  });
 }
 
 function onFinished() {
@@ -564,16 +733,16 @@ function onFinished() {
 //  Controls
 // ═══════════════════════════
 function togglePlay() {
-  if (!S.words.length) return;
+  if (!S.words.length || !S.engine) return;
   if (S.isPlaying && !S.isPaused) {
-    speechSynthesis.pause();
+    S.engine.pause();
     S.isPaused = true; S.isPlaying = false;
     S.elapsedAtPause += (performance.now() - S.startedAt) / 1000;
     setPlayState(false);
     cancelAnimationFrame(S.rafId); S.rafId = null;
     saveProgress();
   } else if (S.isPaused) {
-    speechSynthesis.resume();
+    S.engine.resume();
     S.isPaused = false; S.isPlaying = true;
     S.startedAt = performance.now();
     setPlayState(true);
@@ -592,7 +761,7 @@ function skip(sec) {
 
 function jumpToWord(wordIdx) {
   wordIdx = Math.max(0, Math.min(wordIdx, S.words.length - 1));
-  speechSynthesis.cancel();
+  if (S.engine) S.engine.stop();
   cancelAnimationFrame(S.rafId); S.rafId = null;
   S.isPlaying = false; S.isPaused = false;
   setPlayState(false);
@@ -606,9 +775,12 @@ function cycleSpeed() {
   S.estDuration = (S.words.length / (150 * s)) * 60;
   document.getElementById('t-dur').textContent = fmt(S.estDuration);
   if (S.isPlaying || S.isPaused) {
-    const w = S.currentWordIdx;
-    S.utterances.forEach(u => { u.rate = s; });
-    jumpToWord(w);
+    if (S.engine) S.engine.setRate(s);
+    // For Web Speech, we need to restart at current word
+    if (S.engineId === 'web-speech') {
+      const w = S.currentWordIdx;
+      jumpToWord(w);
+    }
   }
 }
 
@@ -750,7 +922,7 @@ function showScreen(id) {
   window.scrollTo(0,0);
 }
 function goBack() {
-  speechSynthesis.cancel();
+  if (S.engine) S.engine.stop();
   cancelAnimationFrame(S.rafId); S.rafId = null;
   S.isPlaying = false; S.isPaused = false;
   document.getElementById('player-controls').classList.remove('visible');
