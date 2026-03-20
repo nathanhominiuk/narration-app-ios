@@ -350,12 +350,36 @@ function switchTab(t) {
 //  Article extraction
 // ═══════════════════════════
 async function fetchArticle(url) {
-  const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
-  const res = await fetch(proxy, { signal: AbortSignal.timeout(20000) });
-  if (!res.ok) throw new Error('Could not fetch the page.');
-  const { contents } = await res.json();
-  const doc = new DOMParser().parseFromString(contents, 'text/html');
+  const proxies = [
+    {
+      name: 'codetabs',
+      url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+      parse: res => res.text()
+    },
+    {
+      name: 'allorigins',
+      url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(url),
+      parse: res => res.json().then(j => j.contents)
+    }
+  ];
 
+  let lastErr;
+  for (const p of proxies) {
+    try {
+      const res = await fetch(p.url, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error(res.status + ' from ' + p.name);
+      const html = await p.parse(res);
+      if (!html || html.length < 100) throw new Error('Empty response from ' + p.name);
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return extractArticle(doc, url);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw new Error('Could not fetch the page.');
+}
+
+function extractArticle(doc, url) {
   for (const sel of ['script','style','nav','header','footer','aside','form',
                      'iframe','noscript','[role=banner]','[role=navigation]']) {
     doc.querySelectorAll(sel).forEach(el => el.remove());
