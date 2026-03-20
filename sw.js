@@ -1,11 +1,11 @@
-const V = 'legible-v1';
-const SHELL = ['/', '/index.html', '/manifest.json'];
+const V = 'legible-v2';
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(V)
-      .then(c => c.addAll(SHELL))
-      .then(() => self.skipWaiting())
+    caches.open(V).then(c => {
+      const base = self.registration.scope;
+      return c.addAll([base, base + 'index.html', base + 'manifest.json']);
+    }).then(() => self.skipWaiting())
   );
 });
 

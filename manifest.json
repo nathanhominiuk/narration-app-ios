@@ -2,7 +2,7 @@
   "name": "Legible",
   "short_name": "Legible",
   "description": "Listen to any article, on-device",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#1a1714",
