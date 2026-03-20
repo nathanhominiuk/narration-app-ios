@@ -41,6 +41,13 @@ const PIPER_VOICES = [
   },
 ];
 
+function withTimeout(promise, ms, label = 'Operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label + ' timed out after ' + (ms / 1000) + 's')), ms))
+  ]);
+}
+
 export class PiperEngine extends TTSEngine {
   constructor() {
     super('piper', 'Piper');
@@ -198,11 +205,14 @@ export class PiperEngine extends TTSEngine {
 
     if (this._piper.PiperTTS) {
       const tts = new this._piper.PiperTTS(this._modelUrl, this._config);
-      const result = await tts.synthesize(sent.text);
+      const result = await withTimeout(tts.synthesize(sent.text), 60000, 'Audio generation');
       samples = new Float32Array(result.audio);
       sampleRate = result.sampleRate || this._config.audio?.sample_rate || 22050;
     } else if (this._piper.synthesize) {
-      const result = await this._piper.synthesize(sent.text, this._modelUrl, this._config);
+      const result = await withTimeout(
+        this._piper.synthesize(sent.text, this._modelUrl, this._config),
+        60000, 'Audio generation'
+      );
       samples = new Float32Array(result.audio || result);
       sampleRate = result.sampleRate || this._config.audio?.sample_rate || 22050;
     } else {
