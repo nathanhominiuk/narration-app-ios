@@ -1,4 +1,4 @@
-const V = 'legible-v3';
+const V = 'legible-v4';
 
 self.addEventListener('install', e => {
   e.waitUntil(
