@@ -1,6 +1,6 @@
-# Legible — deploy to GitHub Pages in 2 minutes
+# Legible - On-Device Article Narration
 
-Three files. No build step. No dependencies.
+Live at https://nathanhominiuk.github.io/narration-app-ios/ until GitHub tries to make me pay for hosting
 
 ---
 
