@@ -1,0 +1,20 @@
+{
+  "name": "Legible",
+  "short_name": "Legible",
+  "description": "Listen to any article, on-device",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a1714",
+  "theme_color": "#1a1714",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%231a1714'/%3E%3Ctext x='256' y='340' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-size='300' fill='%23c9a84c'%3EL%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "news"],
+  "prefer_related_applications": false
+}
